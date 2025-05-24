@@ -8,29 +8,33 @@ module traffic_light #(parameter cnt1ms = 100000)
     output lcd_rw,
     output reg [7:0] lcd_data,
     output reg [7:0] digit,
-    output reg [7:0] seg_data
-);
+    output reg [7:0] seg_data);
 
 reg [31:0] cnt_clk;
 reg [4:0] cnt_4m, cnt_line;
-reg [11:0] cnt_1s, cnt_2s, cnt_4s, cnt_42, cnt_24;
-reg tick1m, tick4m, tick1s,tick2s, tick4s,tick42_delay, tick24_delay, tick_line;
-reg [3:0] lcd_routine;
+reg [11:0] cnt_1s, cnt_2s,cnt_42,cnt_24;
+reg tick1m, tick4m, tick1s,tick2s,tick42_delay, tick24_delay, tick_line;
+reg [4:0] lcd_routine;
 reg lcd_e, lcd_rs;
 
+///상태 파라미터//
 parameter delay_4ms = 0;
 parameter function_set =1;
 parameter entry_mode =2;
 parameter disp_on =3;
 parameter disp_000 =4;
 parameter disp_001 =5;
-parameter disp_010 =6;
-parameter disp_011 =7;
-parameter disp_110 =8;
-parameter disp_111 =9;
-parameter disp_100 =10;
-parameter disp_101 =11;
-parameter start_clear = 12;
+parameter display_clear = 6;
+parameter disp_010 =7;
+parameter disp_011 =8;
+parameter display_clear_B =9;
+parameter disp_110 =10;
+parameter disp_111 =11;
+parameter display_clear_C =12;
+parameter disp_100 =13;
+parameter disp_101 =14;
+parameter display_clear_D =15;
+parameter start_clear = 16;
 
 parameter address_line1 = 8'b1000_0000;
 parameter address_line2 = 8'b1100_0000;
@@ -128,28 +132,6 @@ begin
     end
 end     
 
-/////////////////4s tick////////////////////
-always @(posedge clk)
-begin
-    if(!resetn)
-    begin
-        cnt_4s <=0;
-        tick4s <= 1'b0;
-    end
-    else
-    begin
-        if(tick1s)
-            if(cnt_4s == 3)
-            begin
-                cnt_4s <=0;
-                tick4s <=1'b1;
-            end
-            else cnt_4s <= cnt_4s + 1;
-         else  tick4s <= 1'b0;
-    end
-end     
-
-
 /////////////////tick_line////////////////////
 always @(posedge clk)
 begin
@@ -161,8 +143,8 @@ begin
     else
     begin
         if(lcd_routine == disp_000 || lcd_routine == disp_001 || lcd_routine == disp_010
-           || lcd_routine == disp_011 || lcd_routine == disp_110 || lcd_routine == disp_111
-           || lcd_routine == disp_100 || lcd_routine == disp_101)
+               || lcd_routine == disp_011 || lcd_routine == disp_110 || lcd_routine == disp_111
+               || lcd_routine == disp_100 || lcd_routine == disp_101)
         begin
             if(tick4m)
             begin
@@ -193,14 +175,23 @@ begin
     end
     else
     begin
-        if(tick4m)
-            if(cnt_42 == 483 )   // 499 - 16(line tick) = 483
+        if(lcd_routine == disp_001 || lcd_routine == disp_111)
             begin
-                cnt_42 <=0;
-                tick42_delay <=1'b1;
-            end
-            else cnt_42 <= cnt_42 + 1;
-         else  tick42_delay <= 1'b0;
+            if(tick4m)
+                if(cnt_42 == 482 )   // 499 - 16(line tick)-1(4ms tick) = 482
+                begin
+                    cnt_42 <=0;
+                    tick42_delay <=1'b1;
+                end
+                else cnt_42 <= cnt_42 + 1;
+             else  tick42_delay <= 1'b0;
+             end
+        else
+        begin
+            cnt_42 <=0;
+            tick42_delay <= 1'b0;
+        end
+                 
     end
 end
 
@@ -214,14 +205,22 @@ begin
     end
     else
     begin
-        if(tick4m)
-            if(cnt_24 == 233 )   // 249 - 16(line tick) = 233
+        if(lcd_routine == disp_001 || lcd_routine == disp_111)
             begin
-                cnt_24 <=0;
-                tick24_delay <=1'b1;
-            end
-            else cnt_24 <= cnt_24 + 1;
-         else  tick24_delay <= 1'b0;
+            if(tick4m)
+                if(cnt_24 == 232 )   // 249 - 16(line tick)-1(4ms tick) = 232
+                begin
+                    cnt_24 <=0;
+                    tick24_delay <=1'b1;
+                end
+                else cnt_24 <= cnt_24 + 1;
+             else  tick24_delay <= 1'b0;
+             end
+         else
+         begin
+            cnt_24 <=0;
+            tick24_delay <= 1'b0;
+         end
     end
 end
 
@@ -239,25 +238,29 @@ begin
             function_set: if(tick4m)lcd_routine <= entry_mode;
             entry_mode: if(tick4m)  lcd_routine <= disp_on;
             disp_on  : if(tick4m)   lcd_routine <= disp_000;
+            
             disp_000 : if(tick_line)   lcd_routine <= disp_001;
-            disp_001 : if(tick42_delay)   lcd_routine <= disp_010;
+            disp_001 : if(tick42_delay)   lcd_routine <= display_clear;  //거의 4초
+            display_clear:if(tick4m)    lcd_routine <= disp_010;
             
             disp_010 : if(tick_line)   lcd_routine <= disp_011;
-            disp_011 : if(tick24_delay)   lcd_routine <= disp_110;
+            disp_011 : if(tick24_delay)   lcd_routine <= display_clear_B;  // 거의2초
+            display_clear_B:if(tick4m)    lcd_routine <= disp_110;
            
             disp_110 : if(tick_line)   lcd_routine <= disp_111;
-            disp_111 : if(tick42_delay)   lcd_routine <= disp_100;
+            disp_111 : if(tick42_delay)   lcd_routine <= display_clear_C; // 거의4초
+            display_clear_C:if(tick4m)    lcd_routine <= disp_100;
             
             disp_100 : if(tick_line)   lcd_routine <= disp_101;
-            disp_101 : if(tick24_delay)   lcd_routine <= disp_000;
-            
+            disp_101 : if(tick24_delay)   lcd_routine <= display_clear_D; // 거의 2초
+            display_clear_D:if(tick4m)    lcd_routine <= disp_000;
             default  : lcd_routine <= start_clear;
          endcase
      end
  end
  
  assign lcd_rw = 1'b0;
- wire [2:0] half4m = 3;
+localparam [2:0] half4m = 3;
  
  ///////////////lcd_rs 할당///////////////////////
  always@(posedge clk) begin
@@ -342,7 +345,38 @@ end
                                   lcd_e <= 1'b1;
                                 else
                                   lcd_e <= 1'b0;  end                  
-                                  
+                display_clear :
+                  begin
+                    lcd_data <= 8'b0000_0001;
+                    if (cnt_4m >= 1 & cnt_4m <= half4m)
+                      lcd_e <= 1'b1;
+                    else
+                      lcd_e <= 1'b0;
+                  end
+                display_clear_B :
+                  begin
+                    lcd_data <= 8'b0000_0001;
+                    if (cnt_4m >= 1 & cnt_4m <= half4m)
+                      lcd_e <= 1'b1;
+                    else
+                      lcd_e <= 1'b0;
+                  end
+                display_clear_C :
+                  begin
+                    lcd_data <= 8'b0000_0001;
+                    if (cnt_4m >= 1 & cnt_4m <= half4m)
+                      lcd_e <= 1'b1;
+                    else
+                      lcd_e <= 1'b0;
+                  end
+                display_clear_D :
+                  begin
+                    lcd_data <= 8'b0000_0001;
+                    if (cnt_4m >= 1 & cnt_4m <= half4m)
+                      lcd_e <= 1'b1;
+                    else
+                      lcd_e <= 1'b0;
+                  end                  
                                   
              endcase       
        end                                                    
@@ -356,7 +390,7 @@ reg [2:0] display_cnt;
 always @(posedge clk)
 begin
     if(!resetn) display_cnt <= 0;
-    else if (cnt_line == 1)                    //cnt_line이 상승하는 가장 빠른 타이밍(쓰기르 시작할 때)
+    else if (cnt_line == 1)                    //cnt_line이 상승하는 가장 빠른 타이밍(쓰기를 시작할 때)
     begin
         if (display_cnt == 7) display_cnt <=0;
         else display_cnt <= display_cnt + 1;           /////한 사이클 돌면 초기화
@@ -372,7 +406,7 @@ begin
     if(!resetn) digit <= 8'b0000_0001;  ///가장 왼쪽 segment
     else
     begin
-        if (display_cnt < 4) digit <= 8'b0000_0001 << display_cnt; //왼쪽 segment 구간
+        if (display_cnt < 4) digit <= 8'b0000_0001 >> display_cnt; //왼쪽 segment 구간
         else                                                        
         begin            
             digit <= 8'b0001_0000 >> (display_cnt-4);                    // 오른쪽 segment 구간
