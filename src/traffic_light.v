@@ -3,20 +3,18 @@
 module traffic_light #(parameter cnt1ms = 100000)
 (   input clk,
     input resetn,
-    output lcd_e,
-    output lcd_rs,
+    output reg lcd_e,
+    output reg lcd_rs,
     output lcd_rw,
     output reg [7:0] lcd_data,
     output reg [7:0] digit,
-    output reg [7:0] seg_data
-);
+    output reg [7:0] seg_data);
 
 reg [31:0] cnt_clk;
 reg [4:0] cnt_4m, cnt_line;
-reg [11:0] cnt_1s, cnt_2s, cnt_4s, cnt_42, cnt_24;
-reg tick1m, tick4m, tick1s,tick2s, tick4s,tick42_delay, tick24_delay, tick_line;
-reg [3:0] lcd_routine;
-reg lcd_e, lcd_rs;
+reg [11:0] cnt_42,cnt_42_B,cnt_24;
+reg tick1m, tick4m,tick42_delay,tick42_delay_B, tick24_delay,tick_line;
+reg [4:0] lcd_routine;
 
 ///상태 파라미터//
 parameter delay_4ms = 0;
@@ -25,13 +23,17 @@ parameter entry_mode =2;
 parameter disp_on =3;
 parameter disp_000 =4;
 parameter disp_001 =5;
-parameter disp_010 =6;
-parameter disp_011 =7;
-parameter disp_110 =8;
-parameter disp_111 =9;
-parameter disp_100 =10;
-parameter disp_101 =11;
-parameter start_clear = 12;
+parameter display_clear = 6;
+parameter disp_010 =7;
+parameter disp_011 =8;
+parameter display_clear_B =9;
+parameter disp_110 =10;
+parameter disp_111 =11;
+parameter display_clear_C =12;
+parameter disp_100 =13;
+parameter disp_101 =14;
+parameter display_clear_D =15;
+parameter start_clear = 16;
 
 parameter address_line1 = 8'b1000_0000;
 parameter address_line2 = 8'b1100_0000;
@@ -87,70 +89,6 @@ begin
     end
 end
 
-/////////////////1s tick////////////////////
-always @(posedge clk)
-begin
-    if(!resetn)
-    begin
-        cnt_1s <=0;
-        tick1s <= 1'b0;
-    end
-    else
-    begin
-        if(tick4m)
-            if(cnt_1s == 249)
-            begin
-                cnt_1s <=0;
-                tick1s <=1'b1;
-            end
-            else cnt_1s <= cnt_1s + 1;
-         else  tick1s <= 1'b0;
-    end
-end
-
-/////////////////2s tick////////////////////
-always @(posedge clk)
-begin
-    if(!resetn)
-    begin
-        cnt_2s <=0;
-        tick2s <= 1'b0;
-    end
-    else
-    begin
-        if(tick1s)
-            if(cnt_2s == 1)
-            begin
-                cnt_2s <=0;
-                tick2s <=1'b1;
-            end
-            else cnt_2s <= cnt_2s + 1;
-         else  tick2s <= 1'b0;
-    end
-end     
-
-/////////////////4s tick////////////////////
-always @(posedge clk)
-begin
-    if(!resetn)
-    begin
-        cnt_4s <=0;
-        tick4s <= 1'b0;
-    end
-    else
-    begin
-        if(tick1s)
-            if(cnt_4s == 3)
-            begin
-                cnt_4s <=0;
-                tick4s <=1'b1;
-            end
-            else cnt_4s <= cnt_4s + 1;
-         else  tick4s <= 1'b0;
-    end
-end     
-
-
 /////////////////tick_line////////////////////
 always @(posedge clk)
 begin
@@ -162,8 +100,8 @@ begin
     else
     begin
         if(lcd_routine == disp_000 || lcd_routine == disp_001 || lcd_routine == disp_010
-           || lcd_routine == disp_011 || lcd_routine == disp_110 || lcd_routine == disp_111
-           || lcd_routine == disp_100 || lcd_routine == disp_101)
+               || lcd_routine == disp_011 || lcd_routine == disp_110 || lcd_routine == disp_111
+               || lcd_routine == disp_100 || lcd_routine == disp_101)
         begin
             if(tick4m)
             begin
@@ -185,6 +123,7 @@ begin
 end
 
 /////////////////tick42_delay////////////////////
+////////////////4초 만들기 위한 지연///////////
 always @(posedge clk)
 begin
     if(!resetn)
@@ -194,14 +133,53 @@ begin
     end
     else
     begin
-        if(tick4m)
-            if(cnt_42 == 483 )   // 499 - 16(line tick) = 483
+        if(lcd_routine == disp_001)
             begin
-                cnt_42 <=0;
-                tick42_delay <=1'b1;
-            end
-            else cnt_42 <= cnt_42 + 1;
-         else  tick42_delay <= 1'b0;
+            if(tick4m)
+                if(cnt_42 == 977 )   // 999 - 16(line tick)-6(6 x 4ms tick) = 977
+                begin
+                    cnt_42 <=0;
+                    tick42_delay <=1'b1;
+                end
+                else cnt_42 <= cnt_42 + 1;
+             else  tick42_delay <= 1'b0;
+             end
+        else
+        begin
+            cnt_42 <=0;
+            tick42_delay <= 1'b0;
+        end
+                 
+    end
+end
+
+/////////////////tick42_delay_B////////////////////
+always @(posedge clk)
+begin
+    if(!resetn)
+    begin
+        cnt_42_B <=0;
+        tick42_delay_B <= 1'b0;
+    end
+    else
+    begin
+        if(lcd_routine == disp_111)
+            begin
+            if(tick4m)
+                if(cnt_42_B == 982)   // 999 - 16(line tick)-1(4ms tick) = 982
+                begin
+                    cnt_42_B <=0;
+                    tick42_delay_B <=1'b1;
+                end
+                else cnt_42_B <= cnt_42_B + 1;
+             else  tick42_delay_B <= 1'b0;
+             end
+        else
+        begin
+            cnt_42_B <=0;
+            tick42_delay_B <= 1'b0;
+        end
+                 
     end
 end
 
@@ -215,14 +193,22 @@ begin
     end
     else
     begin
-        if(tick4m)
-            if(cnt_24 == 233 )   // 249 - 16(line tick) = 233
+        if(lcd_routine == disp_001 || lcd_routine == disp_111)
             begin
-                cnt_24 <=0;
-                tick24_delay <=1'b1;
-            end
-            else cnt_24 <= cnt_24 + 1;
-         else  tick24_delay <= 1'b0;
+            if(tick4m)
+                if(cnt_24 == 482)   // 499 - 16(line tick)-1(4ms tick) = 482
+                begin
+                    cnt_24 <=0;
+                    tick24_delay <=1'b1;
+                end
+                else cnt_24 <= cnt_24 + 1;
+             else  tick24_delay <= 1'b0;
+             end
+         else
+         begin
+            cnt_24 <=0;
+            tick24_delay <= 1'b0;
+         end
     end
 end
 
@@ -240,26 +226,30 @@ begin
             function_set: if(tick4m)lcd_routine <= entry_mode;
             entry_mode: if(tick4m)  lcd_routine <= disp_on;
             disp_on  : if(tick4m)   lcd_routine <= disp_000;
+            
             disp_000 : if(tick_line)   lcd_routine <= disp_001;
-            disp_001 : if(tick42_delay)   lcd_routine <= disp_010;
+            disp_001 : if(tick42_delay)   lcd_routine <= display_clear;  
+            display_clear:if(tick4m)    lcd_routine <= disp_010;        //// 여기까지 정확히 4초
             
             disp_010 : if(tick_line)   lcd_routine <= disp_011;
-            disp_011 : if(tick24_delay)   lcd_routine <= disp_110;
+            disp_011 : if(tick24_delay)   lcd_routine <= display_clear_B;  
+            display_clear_B:if(tick4m)    lcd_routine <= disp_110;      /// 여기까지 정확히 4+2초
            
             disp_110 : if(tick_line)   lcd_routine <= disp_111;
-            disp_111 : if(tick42_delay)   lcd_routine <= disp_100;
+            disp_111 : if(tick42_delay_B)   lcd_routine <= display_clear_C; 
+            display_clear_C:if(tick4m)    lcd_routine <= disp_100;      /// 여기까지 정확히 4+2+4초
             
             disp_100 : if(tick_line)   lcd_routine <= disp_101;
-            disp_101 : if(tick24_delay)   lcd_routine <= disp_000;
-            
+            disp_101 : if(tick24_delay)   lcd_routine <= display_clear_D; 
+            display_clear_D:if(tick4m)    lcd_routine <= start_clear;   /// 여기까지 정확히 4+2+4+2 = 12초
             default  : lcd_routine <= start_clear;
          endcase
      end
  end
  
+ //////lcd_rw 할당///////////
  assign lcd_rw = 1'b0;
- wire [2:0] half4m = 3;
- 
+localparam [2:0] half4m = 3;
  ///////////////lcd_rs 할당///////////////////////
  always@(posedge clk) begin
     if(!resetn) lcd_rs <=1'b0;
@@ -275,7 +265,6 @@ begin
         else lcd_rs <= 1'b0;
     end
 end
- 
  ////////////////상태 assign///////////////////////
  always @(posedge clk)
  begin
@@ -343,7 +332,38 @@ end
                                   lcd_e <= 1'b1;
                                 else
                                   lcd_e <= 1'b0;  end                  
-                                  
+                display_clear :
+                  begin
+                    lcd_data <= 8'b0000_0001;
+                    if (cnt_4m >= 1 & cnt_4m <= half4m)
+                      lcd_e <= 1'b1;
+                    else
+                      lcd_e <= 1'b0;
+                  end
+                display_clear_B :
+                  begin
+                    lcd_data <= 8'b0000_0001;
+                    if (cnt_4m >= 1 & cnt_4m <= half4m)
+                      lcd_e <= 1'b1;
+                    else
+                      lcd_e <= 1'b0;
+                  end
+                display_clear_C :
+                  begin
+                    lcd_data <= 8'b0000_0001;
+                    if (cnt_4m >= 1 & cnt_4m <= half4m)
+                      lcd_e <= 1'b1;
+                    else
+                      lcd_e <= 1'b0;
+                  end
+                display_clear_D :
+                  begin
+                    lcd_data <= 8'b0000_0001;
+                    if (cnt_4m >= 1 & cnt_4m <= half4m)
+                      lcd_e <= 1'b1;
+                    else
+                      lcd_e <= 1'b0;
+                  end                  
                                   
              endcase       
        end                                                    
@@ -351,71 +371,48 @@ end
 end
 
 ////////////////7-segment///////////////////////
-
-////////////display 할때마다 카운터 증가시키고 한사이클 지나면 초기화////////
-reg [2:0] display_cnt;
-always @(posedge clk)
-begin
-    if(!resetn) display_cnt <= 0;
-    else if (cnt_line == 1)                    //cnt_line이 상승하는 가장 빠른 타이밍(쓰기르 시작할 때)
-    begin
-        if (display_cnt == 7) display_cnt <=0;
-        else display_cnt <= display_cnt + 1;           /////한 사이클 돌면 초기화
-    end                                            
-end            
-
-//////////////// 4초,2초, 왼쪽,오른쪽 따라서 digit 분할/////////////
 wire clk_1hz;
 clock_divider #(49999999) div1(clk,clk_1hz);  // 1hz signal 
-      
-always @(posedge clk_1hz)
-begin
-    if(!resetn) digit <= 8'b0000_0001;  ///가장 왼쪽 segment
-    else
-    begin
-        if (display_cnt < 4) digit <= 8'b0000_0001 << display_cnt; //왼쪽 segment 구간
-        else                                                        
-        begin            
-            digit <= 8'b0001_0000 >> (display_cnt-4);                    // 오른쪽 segment 구간
-        end
-    end
-end
 
-///////////////// digit에 따라서 seg_data 할당 ////////////
-always @(posedge clk_1hz)
-begin
-    if(!resetn) seg_data <= 8'b0000_0000;
+// 1Hz 대신 원하는 속도로 바꿔도 되고, 예시로 clk_1hz 그대로 씁니다.
+reg [3:0] i;
+
+always @(posedge clk_1hz or negedge resetn) begin
+  if (!resetn) begin
+    i        <= 0;
+    digit    <= 8'b1000_0000; // step 0: 1xxx_xxxx
+    seg_data <= 8'b0110_0000; // '1'
+  end else begin
+    // 1) 인덱스 순환: 0→11→0→…
+    if (i == 11)
+      i <= 0;
     else
-        if (display_cnt[1] == 0) // 4초 구간
-        begin
-            case(digit)
-                8'b0000_0001 : seg_data <= 8'b0110_0000;// 1 출력 (왼쪽 4비트)
-                8'b1000_0000 : seg_data <= 8'b1101_1010;// 2
-                8'b0100_0000 : seg_data <= 8'b1111_0010;// 3
-                8'b0010_0000 : seg_data <= 8'b0100_0110;// 4
-                8'b0001_0000 : seg_data <= 8'b0110_0000;// 1 출력 (오른쪽 4비트)
-                8'b0000_1000 : seg_data <= 8'b1101_1010;// 2
-                8'b0000_0100 : seg_data <= 8'b1111_0010;// 3
-                8'b0000_0010 : seg_data <= 8'b0100_0110;// 4
-                default : seg_data <= 8'd0;
-            endcase
-        end
-        else if(display_cnt[1] == 1'b1)      // 2초 구간
-        begin
-            case(digit)
-                8'b0000_0001 : seg_data <= 8'b0110_0000;// 1 출력 (왼쪽 4비트)
-                8'b1000_0000 : seg_data <= 8'b1101_1010;// 2              
-                8'b0001_0000 : seg_data <= 8'b0110_0000;// 1 출력 (오른쪽 4비트)
-                8'b0000_1000 : seg_data <= 8'b1101_1010;// 2
-                default : seg_data <= 8'd0;
-            endcase
-        end
+      i <= i + 1;
+
+    // 2) digit & seg_data 동시 업데이트
+    case (i)
+      0:  begin digit <= 8'b1000_0000; seg_data <= 8'b0110_0000; end // 1xxx_xxxx, '1'
+      1:  begin digit <= 8'b0100_0000; seg_data <= 8'b1101_1010; end // x2xx_xxxx, '2'
+      2:  begin digit <= 8'b0010_0000; seg_data <= 8'b1111_0010; end // xx3x_xxxx, '3'
+      3:  begin digit <= 8'b0001_0000; seg_data <= 8'b0110_0110; end // xxx4_xxxx, '4'
+      4:  begin digit <= 8'b1000_0000; seg_data <= 8'b0110_0000; end // 1xxx_xxxx, '1'
+      5:  begin digit <= 8'b0100_0000; seg_data <= 8'b1101_1010; end // x2xx_xxxx, '2'
+      6:  begin digit <= 8'b0000_1000; seg_data <= 8'b0110_0000; end // xxxx_1xxx, '1'
+      7:  begin digit <= 8'b0000_0100; seg_data <= 8'b1101_1010; end // xxxx_x2xx, '2'
+      8:  begin digit <= 8'b0000_0010; seg_data <= 8'b1111_0010; end // xxxx_xx3x, '3'
+      9:  begin digit <= 8'b0000_0001; seg_data <= 8'b0110_0110; end // xxxx_xxx4, '4'
+      10: begin digit <= 8'b0000_1000; seg_data <= 8'b0110_0000; end // xxxx_1xxx, '1'
+      11: begin digit <= 8'b0000_0100; seg_data <= 8'b1101_1010; end // xxxx_x2xx, '2'
+      default: begin
+        digit    <= 8'b1000_0000;
+        seg_data <= 8'b0110_0000;
+      end
+    endcase
+  end
 end
-  
 
 endmodule
-
-
+      
 /////////clock divider 모듈/////////////////////
 module clock_divider #(parameter div = 49999999)(input clk,output reg clk_out);
 
@@ -433,4 +430,18 @@ always @(posedge clk) begin
         end
     else q <= q + 1;
     end
-endmodule
+endmodule            
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
