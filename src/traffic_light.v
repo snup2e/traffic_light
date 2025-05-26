@@ -4,7 +4,7 @@ module traffic_light #(parameter cnt1ms = 100000)
 (   input clk,
     input resetn,
     output reg lcd_e,
-    output reg lcd_rs,
+    output lcd_rs,
     output lcd_rw,
     output reg [7:0] lcd_data,
     output reg [7:0] digit,
@@ -12,12 +12,12 @@ module traffic_light #(parameter cnt1ms = 100000)
 
 reg [31:0] cnt_clk;
 reg [4:0] cnt_4m, cnt_line;
-reg [11:0] cnt_42,cnt_42_B,cnt_24;
-reg tick1m, tick4m,tick42_delay,tick42_delay_B, tick24_delay,tick_line;
+reg [11:0] cnt_20m,cnt_42,cnt_42_B,cnt_24;
+reg tick1m,tick4m,tick20m,tick42_delay,tick42_delay_B, tick24_delay,tick_line;
 reg [4:0] lcd_routine;
-
+assign lcd_rw = 1'b0;
 ///상태 파라미터//
-parameter delay_4ms = 0;
+parameter delay_20ms = 0;
 parameter function_set =1;
 parameter entry_mode =2;
 parameter disp_on =3;
@@ -37,6 +37,13 @@ parameter start_clear = 16;
 
 parameter address_line1 = 8'b1000_0000;
 parameter address_line2 = 8'b1100_0000;
+parameter address_line3 = 8'b1000_0000;
+parameter address_line4 = 8'b1100_0000;
+parameter address_line5 = 8'b1000_0000;
+parameter address_line6 = 8'b1100_0000;
+parameter address_line7 = 8'b1000_0000;
+parameter address_line8 = 8'b1100_0000;
+
 
 `include "data_line1.sv"//EW : green
 `include "data_line2.sv"//EW : yellow
@@ -89,6 +96,37 @@ begin
     end
 end
 
+/////////////////tick_20m////////////////////
+always @(posedge clk)
+begin
+    if(!resetn)
+    begin
+        cnt_20m<=0;
+        tick20m<=1'b0;
+    end
+    else
+    begin
+        if(lcd_routine == delay_20ms)
+        begin
+            if(tick4m)
+            begin
+                if(cnt_20m == 4)
+                begin
+                    cnt_20m <=0;
+                    tick20m <=1'b1;
+                end
+                else cnt_20m  <= cnt_20m  + 1;
+            end
+            else tick20m <= 1'b0;
+         end
+         else
+         begin
+            cnt_20m  <=0;
+            tick20m <= 1'b0;
+         end
+     end
+end
+
 /////////////////tick_line////////////////////
 always @(posedge clk)
 begin
@@ -136,7 +174,7 @@ begin
         if(lcd_routine == disp_001)
             begin
             if(tick4m)
-                if(cnt_42 == 977 )   // 999 - 16(line tick)-6(6 x 4ms tick) = 977
+                if(cnt_42 == 973 )   // 999 - 16(line tick)-10(6 x 4ms tick) = 973
                 begin
                     cnt_42 <=0;
                     tick42_delay <=1'b1;
@@ -221,8 +259,8 @@ begin
     else
     begin
         case(lcd_routine)
-            start_clear : if(tick4m)lcd_routine <= delay_4ms;
-            delay_4ms: if(tick4m)   lcd_routine <= function_set;
+            start_clear : if(tick4m)lcd_routine <= delay_20ms;
+            delay_20ms: if(tick20m)   lcd_routine <= function_set;
             function_set: if(tick4m)lcd_routine <= entry_mode;
             entry_mode: if(tick4m)  lcd_routine <= disp_on;
             disp_on  : if(tick4m)   lcd_routine <= disp_000;
@@ -247,11 +285,8 @@ begin
      end
  end
  
- //////lcd_rw 할당///////////
- assign lcd_rw = 1'b0;
-localparam [2:0] half4m = 3;
  ///////////////lcd_rs 할당///////////////////////
- always@(posedge clk) begin
+/* always@(posedge clk) begin
     if(!resetn) lcd_rs <=1'b0;
     else
     begin
@@ -265,6 +300,10 @@ localparam [2:0] half4m = 3;
         else lcd_rs <= 1'b0;
     end
 end
+*/
+assign lcd_rs=(cnt_line!=0)&&((lcd_routine==disp_000)||(lcd_routine==disp_001)||(lcd_routine==disp_010)||(lcd_routine==disp_011)||
+                                  (lcd_routine==disp_100)||(lcd_routine==disp_101)||(lcd_routine==disp_110)||(lcd_routine==disp_111));
+
  ////////////////상태 assign///////////////////////
  always @(posedge clk)
  begin
@@ -278,64 +317,64 @@ end
         if(tick1m)
         begin
             case(lcd_routine)
-                delay_4ms : begin lcd_data <=8'b0000_0000; lcd_e <= 1'b0; end
+                delay_20ms : begin lcd_data <=8'b0000_0000; lcd_e <= 1'b0; end
                 function_set : begin lcd_data <= 8'b0011_1000;
-                                if (cnt_4m >=1 & cnt_4m <= half4m)
+                                if (cnt_4m ==1)
                                     lcd_e <= 1'b1;
                                 else
                                     lcd_e <= 1'b0; end
                 entry_mode: begin lcd_data <= 8'b0000_0110; 
-                                if(cnt_4m>=1&cnt_4m <=half4m)
+                                if(cnt_4m ==1)
                                     lcd_e <=1'b1;
                                 else
                                     lcd_e <=1'b0; end
                 disp_on: begin lcd_data <= 8'b0000_1100;
-                                if(cnt_4m >=1&cnt_4m <=half4m)
+                                if(cnt_4m ==1)
                                     lcd_e<=1'b1;
                                 else
                                     lcd_e <= 1'b0; end   
-                disp_000: begin if(cnt_line ==0) lcd_data<= address_line1;
+                disp_000: begin if(!cnt_line) lcd_data<= address_line1;
                                   else lcd_data<= data_line1(cnt_line-1);
-                                  if(cnt_4m >=1 & cnt_4m <= half4m) lcd_e <=1'b1;
+                                  if(cnt_4m ==1) lcd_e <=1'b1;
                                   else lcd_e <= 1'b0; end
-                disp_001: begin if(cnt_line ==0) lcd_data<= address_line2;
+                disp_001: begin if(!cnt_line) lcd_data<= address_line2;
                                   else lcd_data<= data_line6(cnt_line-1);
-                                  if(cnt_4m >=1 & cnt_4m <= half4m) lcd_e <=1'b1;
+                                  if(cnt_4m ==1) lcd_e <=1'b1;
                                   else lcd_e <= 1'b0; end
-                disp_010: begin if(cnt_line ==0) lcd_data<= address_line1;
+                disp_010: begin if(!cnt_line) lcd_data<= address_line3;
                                   else lcd_data<= data_line2(cnt_line-1);
-                                  if(cnt_4m >=1 & cnt_4m <= half4m) lcd_e <=1'b1;
+                                  if(cnt_4m ==1) lcd_e <=1'b1;
                                   else lcd_e <= 1'b0; end
-                disp_011: begin if(cnt_line ==0) lcd_data<= address_line2;
+                disp_011: begin if(!cnt_line) lcd_data<= address_line4;
                                   else lcd_data<= data_line6(cnt_line-1);
-                                  if(cnt_4m >=1 & cnt_4m <= half4m) lcd_e <=1'b1;
+                                  if(cnt_4m ==1) lcd_e <=1'b1;
                                   else lcd_e <= 1'b0; end
-                disp_110: begin if(cnt_line ==0) lcd_data<= address_line1;
+                disp_110: begin if(!cnt_line) lcd_data<= address_line5;
                                   else lcd_data<= data_line3(cnt_line-1);
-                                  if(cnt_4m >=1 & cnt_4m <= half4m) lcd_e <=1'b1;
+                                  if(cnt_4m ==1) lcd_e <=1'b1;
                                   else lcd_e <= 1'b0; end                                               
-                disp_111: begin if(cnt_line ==0) lcd_data<= address_line2;
+                disp_111: begin if(!cnt_line) lcd_data<= address_line6;
                                   else lcd_data<= data_line4(cnt_line-1);
-                                  if(cnt_4m >=1 & cnt_4m <= half4m) lcd_e <=1'b1;
+                                  if(cnt_4m ==1) lcd_e <=1'b1;
                                   else lcd_e <= 1'b0; end                   
-                disp_100: begin if(cnt_line ==0) lcd_data<= address_line1;
+                disp_100: begin if(!cnt_line) lcd_data<= address_line7;
                                   else lcd_data<= data_line3(cnt_line-1);
-                                  if(cnt_4m >=1 & cnt_4m <= half4m) lcd_e <=1'b1;
+                                  if(cnt_4m ==1) lcd_e <=1'b1;
                                   else lcd_e <= 1'b0; end                  
-                disp_101: begin if(cnt_line ==0) lcd_data<= address_line2;
+                disp_101: begin if(!cnt_line) lcd_data<= address_line8;
                                   else lcd_data<= data_line5(cnt_line-1);
-                                  if(cnt_4m >=1 & cnt_4m <= half4m) lcd_e <=1'b1;
+                                  if(cnt_4m ==1) lcd_e <=1'b1;
                                   else lcd_e <= 1'b0; end
                                   
                 start_clear :begin lcd_data <= 8'b0000_0001;
-                                if (cnt_4m >= 1 & cnt_4m <= half4m)
+                                if (cnt_4m ==1)
                                   lcd_e <= 1'b1;
                                 else
                                   lcd_e <= 1'b0;  end                  
                 display_clear :
                   begin
                     lcd_data <= 8'b0000_0001;
-                    if (cnt_4m >= 1 & cnt_4m <= half4m)
+                    if (cnt_4m ==1)
                       lcd_e <= 1'b1;
                     else
                       lcd_e <= 1'b0;
@@ -343,7 +382,7 @@ end
                 display_clear_B :
                   begin
                     lcd_data <= 8'b0000_0001;
-                    if (cnt_4m >= 1 & cnt_4m <= half4m)
+                    if (cnt_4m ==1)
                       lcd_e <= 1'b1;
                     else
                       lcd_e <= 1'b0;
@@ -351,7 +390,7 @@ end
                 display_clear_C :
                   begin
                     lcd_data <= 8'b0000_0001;
-                    if (cnt_4m >= 1 & cnt_4m <= half4m)
+                    if (cnt_4m ==1)
                       lcd_e <= 1'b1;
                     else
                       lcd_e <= 1'b0;
@@ -359,14 +398,13 @@ end
                 display_clear_D :
                   begin
                     lcd_data <= 8'b0000_0001;
-                    if (cnt_4m >= 1 & cnt_4m <= half4m)
+                    if (cnt_4m ==1)
                       lcd_e <= 1'b1;
                     else
                       lcd_e <= 1'b0;
-                  end                  
-                                  
+                  end                 
              endcase       
-       end                                                    
+        end                                                   
     end
 end
 
